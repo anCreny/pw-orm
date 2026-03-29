@@ -23,7 +23,25 @@ func NewCommandBuilder(command string) *CommandBuilder {
 	}
 }
 
-type ValueConstant string
+// valueConstant - тип данных, обозначающий константу.
+//
+// Нужен для передачи значения аргумента команды
+// как константы, без кавычек ("")
+type valueConstant string
+
+func Constant(v string) valueConstant {
+	return valueConstant(v)
+}
+
+// valueNil - тип данных, обозначающий пустое значение.
+//
+// Нужен для передачи пустого значения, когда
+// аргумент не требует передачи никакого значения.
+type valueNil struct{}
+
+func Nil() valueNil {
+	return valueNil{}
+}
 
 type Argument struct {
 	Name  string
@@ -37,8 +55,10 @@ func (a *Argument) toArgument() string {
 		return fmt.Sprintf("-%s %d", a.Name, a.Value.(int))
 	case string:
 		return fmt.Sprintf("-%s \"%s\"", a.Name, a.Value.(string))
-	case ValueConstant:
+	case valueConstant:
 		return fmt.Sprintf("-%s %s", a.Name, a.Value.(string))
+	case valueNil:
+		return fmt.Sprintf("-%s", a.Name)
 	default:
 		panic("неподдерживаемый тип аргумента")
 	}
