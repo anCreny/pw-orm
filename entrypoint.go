@@ -14,6 +14,7 @@ type CommandBuilder struct {
 	whereClause  string
 	selectFields []string
 	limit        int
+	autoConfirm  bool
 }
 
 func NewCommandBuilder(command string) *CommandBuilder {
@@ -142,6 +143,10 @@ func (c *CommandBuilder) Command() *exec.Cmd {
 		command = fmt.Sprintf("%s %s", command, argsString)
 	}
 
+	if c.autoConfirm {
+		command = fmt.Sprintf("%s -Confirm:$false", command)
+	}
+
 	if c.whereClause != "" {
 		whereString := fmt.Sprintf("Where-Object {%s}", c.whereClause)
 
@@ -166,6 +171,13 @@ func (c *CommandBuilder) Command() *exec.Cmd {
 	command = fmt.Sprintf("%s | ConvertTo-Json", command)
 
 	return exec.Command("powershell", "-command", command)
+}
+
+func (c *CommandBuilder) AutoConfirm() *CommandBuilder {
+
+	c.autoConfirm = true
+
+	return c
 }
 
 func TestValidWherer(t *testing.T) {
