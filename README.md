@@ -1,6 +1,6 @@
 # pw-orm
 
-[Icon](https://github.com/amboyarkin/pw-orm/blob/master/props/icon.png)
+![Image alt](https://github.com/anCreny/pw-orm/blob/master/props/icon.png)
 
 ## Описание
 
