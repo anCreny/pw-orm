@@ -9,5 +9,5 @@
 ## Установка
 
 ```shell
-go get github.com/amboyarkin/pw-orm
+go get github.com/anCreny/pw-orm
 ```
