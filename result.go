@@ -1,10 +1,14 @@
 package pworm
 
-import "github.com/anCreny/pw-orm/errors"
+import (
+	"encoding/json"
+
+	"github.com/anCreny/pw-orm/errors"
+)
 
 type result struct {
-	Err *errors.Error `json:"Error"`
-	Out []byte        `json:"Output"`
+	Err *errors.Error   `json:"Error"`
+	Out json.RawMessage `json:"Output"`
 }
 
 func (r *result) FullError() *errors.Error {

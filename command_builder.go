@@ -10,7 +10,7 @@ type CommandBuilder struct {
 	arguments []string
 
 	whereClause  string
-	selectFields []string
+	selectFields []Field
 	limit        int
 	autoConfirm  bool
 }
@@ -21,7 +21,7 @@ func NewCommandBuilder(command string) *CommandBuilder {
 	}
 }
 
-func (c *CommandBuilder) Command() *Command {
+func (c *CommandBuilder) Build() *Command {
 
 	command := c.command
 
@@ -41,7 +41,24 @@ func (c *CommandBuilder) Command() *Command {
 	}
 
 	if len(c.selectFields) != 0 {
-		selectString := strings.Join(c.selectFields, ", ")
+		var fields []string
+		for _, selectField := range c.selectFields {
+			// Если имя пустое, пропускаем
+			if selectField.Name == "" {
+				continue
+			}
+
+			// Если алиас не указан, устанавливаем
+			// его в качестве имени
+			if selectField.As == "" {
+				selectField.As = selectField.Name
+			}
+
+			field := fmt.Sprintf("@{Name='%s'; Expression={$_.%s}}", selectField.As, selectField.Name)
+
+			fields = append(fields, field)
+		}
+		selectString := strings.Join(fields, ", ")
 
 		selectString = fmt.Sprintf("| Select %s", selectString)
 

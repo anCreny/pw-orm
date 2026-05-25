@@ -19,14 +19,15 @@ func (c *Command) Cmd() *exec.Cmd {
 }
 
 func (c *Command) Run() (result, error) {
-	commandToExtract := `Try 
-	{ $res = ` + c.command + ` ; $res = '{"Output": ; + $res + "}" ; Write-Host $res } 
+	commandToExtract := `
+	Try 
+	{ $res = ` + c.command + ` ; $res = '{"Output": ' + $res + "}" ; Write-Host $res } 
 	Catch 
 	{ $res = $_  | ConvertTo-Json ; $res = '{"Error": ' + $res + "}" ; Write-Host $res }`
 
 	commandOut, err := exec.Command("powershell", "-command", commandToExtract).Output()
 	if err != nil {
-		return result{}, fmt.Errorf("error on start running command(%s): %s", c.command, err)
+		return result{}, fmt.Errorf("error on run command(%s): %s", c.command, err)
 	}
 
 	var r result
