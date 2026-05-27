@@ -7,7 +7,8 @@ import (
 )
 
 type Command struct {
-	command string
+	command  string
+	executor Executer
 }
 
 func (c *Command) String() string {
@@ -21,11 +22,18 @@ func (c *Command) Cmd() *exec.Cmd {
 func (c *Command) Run() (result, error) {
 	commandToExtract := `
 	Try 
-	{ $res = ` + c.command + ` ; $res = '{"Output": ' + $res + "}" ; Write-Host $res } 
+	{ 
+		$res = ` + c.command + `
+		@{"Output" = $res} | ConvertTo-Json -Depth 4
+	} 
 	Catch 
-	{ $res = $_  | ConvertTo-Json ; $res = '{"Error": ' + $res + "}" ; Write-Host $res }`
+	{ 
+		$res = $_  | ConvertTo-Json -Depth 3  
+		@{"Error" = $res} | ConvertTo-Json
+	}
+	`
 
-	commandOut, err := exec.Command("powershell", "-command", commandToExtract).Output()
+	commandOut, err := c.executor.Execute(commandToExtract)
 	if err != nil {
 		return result{}, fmt.Errorf("error on run command(%s): %s", c.command, err)
 	}

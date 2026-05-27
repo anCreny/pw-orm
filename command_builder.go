@@ -13,11 +13,14 @@ type CommandBuilder struct {
 	selectFields []Field
 	limit        int
 	autoConfirm  bool
+
+	executor Executer
 }
 
 func NewCommandBuilder(command string) *CommandBuilder {
 	return &CommandBuilder{
-		command: command,
+		command:  command,
+		executor: &TransientExecuter{},
 	}
 }
 
