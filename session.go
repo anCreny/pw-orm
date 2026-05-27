@@ -19,7 +19,7 @@ import (
 func InSession(session func(operator *Operator) error) error {
 	s, err := sessions.Start()
 	if err != nil {
-		return fmt.Errorf("Произошла ошибка при запуске сессии: %s", err)
+		return fmt.Errorf("произошла ошибка при запуске сессии: %s", err)
 	}
 
 	defer s.Close()

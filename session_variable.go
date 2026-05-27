@@ -26,7 +26,7 @@ func (c *SCommand) ToVariable() (*SVariable, error) {
 	}
 
 	if res.Output() == nil {
-		return nil, fmt.Errorf("Команда не вернула данные для преобразования в переменную.")
+		return nil, fmt.Errorf("команда не вернула данные для преобразования в переменную")
 	}
 
 	var data map[string]any
@@ -45,7 +45,7 @@ func (c *SCommand) ToVariable() (*SVariable, error) {
 		if err == nil {
 			err = result.Error()
 		}
-		return nil, fmt.Errorf("Произошла ошибка при создании переменной в сессии: %s", err)
+		return nil, fmt.Errorf("произошла ошибка при создании переменной в сессии: %s", err)
 	}
 
 	return v, nil
@@ -55,14 +55,21 @@ func (v *SVariable) PW() string {
 	return fmt.Sprintf("$global:%s['%s']", v.o.s.ID, v.pwName)
 }
 
+// Внутри переменной находится сложный CimClass из .NET,
+// с которым нормально умеет работать только PowerShell.
+// Для необходимости достать какое-то поле у переменной
+// лучше воспользоваться командой operator.NewCommandBuilder(variable.PW()).Select("RecordData.IPv4Address.IPv4AddressToString", "IP").Build()
+// и дальше скастить результат к необходимой структуре или еще раз
+// вызвать TryGet
+//
 // path - путь вложения до необходимого поля, пример: RecordData.IPv4Address
-func (v *SVariable) TryGet(path string) (any, bool) {
+func (v *SVariable) TryGet(path string) (any, error) {
 	if v.cimClass == nil {
-		return nil, false
+		return nil, fmt.Errorf("переменная не содержит данные")
 	}
 
 	if !validateVaribalePath(path) {
-		return nil, false
+		return nil, fmt.Errorf("некорректный путь: %s", path)
 	}
 
 	parts := strings.Split(path, ".")
@@ -75,7 +82,7 @@ func (v *SVariable) TryGet(path string) (any, bool) {
 		if cimField == nil {
 			cimField, ok = v.cimClass[part]
 			if !ok {
-				return nil, false
+				return nil, fmt.Errorf("поле %s не найдено", part)
 			}
 
 			continue
@@ -83,16 +90,16 @@ func (v *SVariable) TryGet(path string) (any, bool) {
 
 		mapCimField, ok := cimField.(map[string]any)
 		if !ok {
-			return nil, false
+			return nil, fmt.Errorf("поле %s не является словарем", part)
 		}
 
 		cimField, ok = mapCimField[part]
 		if !ok {
-			return nil, false
+			return nil, fmt.Errorf("поле %s не найдено", part)
 		}
 	}
 
-	return cimField, true
+	return cimField, nil
 }
 
 // returns:
@@ -111,27 +118,27 @@ func (v *SVariable) TrySet(path string, value any) (bool, error) {
 	// Проверяем валидность переданных данных
 
 	if path == "" {
-		return false, fmt.Errorf("Ошибка при установке значения: путь не может быть пустой")
+		return false, fmt.Errorf("ошибка при установке значения: путь не может быть пустой")
 	}
 
 	if value == nil {
-		return false, fmt.Errorf("Ошибка при установке значения: значение не может быть nil")
+		return false, fmt.Errorf("ошибка при установке значения: значение не может быть nil")
 	}
 
 	if !validateVaribalePath(path) {
-		return false, fmt.Errorf("Ошибка при установке значения: неверный путь")
+		return false, fmt.Errorf("ошибка при установке значения: неверный путь")
 	}
 
 	if v.cimClass == nil {
-		return false, fmt.Errorf("Ошибка при установке значения: переменная не была создана")
+		return false, fmt.Errorf("ошибка при установке значения: переменная не была создана")
 	}
 
 	if v.o == nil {
-		return false, fmt.Errorf("Ошибка при установке значения: оператор не был создан")
+		return false, fmt.Errorf("ошибка при установке значения: оператор не был создан")
 	}
 
 	if v.pwName == "" {
-		return false, fmt.Errorf("Ошибка при установке значения: имя переменной не было создано")
+		return false, fmt.Errorf("ошибка при установке значения: имя переменной не было создано")
 	}
 
 	// Сначала обновим поле у необходимого объекта в PW
@@ -140,67 +147,90 @@ func (v *SVariable) TrySet(path string, value any) (bool, error) {
 		$object = ` + v.PW() + `
 		$newValueStr = "` + fmt.Sprint(value) + `"
 
-		# 1. Разбиваем путь по точкам
 		$parts = $targetFieldPath.Split('.')
 
-		# 2. Начинаем с самого верхнего объекта
 		$currentObject = $object
 
-		# 3. Спускаемся по цепочке вложенности, ОСТАНАВЛИВАЯСЬ на предпоследнем элементе.
-		# Нам нужен объект, который НАХОДИТСЯ ВНУТРИ RecordData.
 		for ($i = 0; $i -lt $parts.Count - 1; $i++) {
     		$currentObject = $currentObject.($parts[$i])
 		}
 
-		# 4. Берем имя самого последнего поля
 		$finalField = $parts[-1]
 
-		# 5. Теперь запрашиваем CimType у того объекта, внутри которого это поле лежит
 		$targetType = $currentObject.CimInstanceProperties[$finalField].CimType
 
 		if ($targetType -eq "Instance" -or $targetType -eq "Reference") {
 
-    	# Если это сложный .NET объект (как System.Net.IPAddress)
-    	# Вытаскиваем его реальное .NET имя типа из метаданных CIM
-    	$realTypeName = $object.$targetFieldPath.GetType().FullName
+    	$realTypeName = $currentObject.$finalField.GetType().FullName
     	$typeObject = [type]$realTypeName
     
-    	# Динамически вызываем метод Parse у этого типа
     	$parsedValue = $typeObject::Parse($newValueStr)
 
 		} else {
 
-    	# Если это простой тип (string, int, boolean) - PowerShell сам сделает безопасное приведение типов
     	$parsedValue = $newValueStr
 
 		}
 
-		# Применяем полученное значение обратно в клон
-		$object.$targetFieldPath = $parsedValue
+		$currentObject.$finalField = $parsedValue
 
 		`).Run(); err != nil || result.Error() != nil {
-		return false, fmt.Errorf("Ошибка при установке значения в PowerShell: %s", result.Error())
+		return false, fmt.Errorf("ошибка при установке значения в PowerShell: %s", result.Error())
 	}
 
 	// Получим обновленную структуру из PowerShell и сохраним ее в переменную
-	result, err := v.o.NewCommandBuilder("$` + v.pwName + `").Build().Run()
+	result, err := v.o.NewCommandBuilder(v.PW()).Build().Run()
 	if err != nil {
-		return false, fmt.Errorf("Ошибка при выполнении команды на получение обновленной структуры: %v", err)
+		return false, fmt.Errorf("ошибка при выполнении команды на получение обновленной структуры: %v", err)
 	}
 
 	if result.Error() != nil {
-		return false, fmt.Errorf("Ошибка при получение обновленной структуры: %v", result.Error())
+		return false, fmt.Errorf("ошибка при получение обновленной структуры: %v", result.Error())
 	}
 
 	var cimClass map[string]any
 
 	if err := json.Unmarshal(result.Output(), &cimClass); err != nil {
-		return false, fmt.Errorf("Ошибка при декодировании обновленной структуры: %v", err)
+		return false, fmt.Errorf("ошибка при декодировании обновленной структуры: %v", err)
 	}
 
 	v.cimClass = cimClass
 
 	return true, nil
+}
+
+func (v *SVariable) Clone() (*SVariable, error) {
+
+	cloneVariable := &SVariable{
+		o:      v.o,
+		pwName: helpers.GenerateRandomString(10),
+	}
+
+	if result, err := v.o.RawCommand(fmt.Sprintf("%s = %s.Clone()", cloneVariable.PW(), v.PW())).Run(); err != nil || result.Error() != nil {
+		if err == nil {
+			err = result.Error()
+		}
+		return nil, fmt.Errorf("произошла ошибка при создании переменной в сессии: %s", err)
+	}
+
+	result, err := v.o.NewCommandBuilder(cloneVariable.PW()).Build().Run()
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при выполнении команды на получение обновленной структуры: %v", err)
+	}
+
+	if result.Error() != nil {
+		return nil, fmt.Errorf("ошибка при получение обновленной структуры: %v", result.Error())
+	}
+
+	var cimClass map[string]any
+
+	if err := json.Unmarshal(result.Output(), &cimClass); err != nil {
+		return nil, fmt.Errorf("ошибка при декодировании обновленной структуры: %v", err)
+	}
+
+	cloneVariable.cimClass = cimClass
+
+	return cloneVariable, nil
 }
 
 func validateVaribalePath(path string) bool {

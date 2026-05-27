@@ -16,9 +16,6 @@ type Session struct {
 	stdout io.ReadCloser
 	stderr io.ReadCloser
 
-	stdoutClose chan struct{}
-	stderrClone chan struct{}
-
 	ID string // Идентификатор сессии для управления scope в powershell
 }
 
@@ -52,16 +49,12 @@ func (s *Session) Execute(command string) ([]byte, error) {
 	wrappedCommand := `
 		$stdoutStr = & { ` + command + ` }
 
-    # ПРЕДОХРАНИТЕЛЬ: Если команда ничего не вывела (например, это присвоение переменной),
-    # мы принудительно устанавливаем валидный пустой JSON, чтобы Go не завис.
     if ([string]::IsNullOrWhiteSpace($stdoutStr)) {
         $stdoutStr = "{}"
     }
 
-    # Перехватываем системные ошибки (если они были)
     $stderrStr = $Error | Out-String; $Error.Clear()
 
-    # Переводим данные в сырые байты UTF-8
     $outBytes = [System.Text.Encoding]::UTF8.GetBytes($stdoutStr.Trim())
     $errBytes = [System.Text.Encoding]::UTF8.GetBytes($stderrStr.Trim())
 
@@ -72,7 +65,6 @@ func (s *Session) Execute(command string) ([]byte, error) {
         if ($bytes.Length -gt 0) { $stream.Write($bytes, 0, $bytes.Length) }
     }
 
-    # Отправляем пакеты
     Send-Packet $outBytes $false
     Send-Packet $errBytes $true
 	`
