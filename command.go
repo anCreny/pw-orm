@@ -20,16 +20,29 @@ func (c *Command) Cmd() *exec.Cmd {
 }
 
 func (c *Command) Run() (result, error) {
+	// Если команда выполеняется успешно,
+	// создастатся глобальная переменная $global:Output.
+	// Для того, чтобы избежать проблем, связанных с чтением
+	// старой глобальной переменной $global:Output во время
+	// ошибки выполнения следующей команды, удалим ее.
 	commandToExtract := `
 	Try 
 	{ 
-		$res = ` + c.command + `
+		$userCommand = @'
+		` + c.command + `
+'@
+
+		$command = [ScriptBlock]::Create($userCommand)
+
+		$res = & $command
+		$global:Output_` + scopeID + ` = $res
 		@{"Output" = $res} | ConvertTo-Json -Depth 4
 	} 
 	Catch 
 	{ 
-		$res = $_  | ConvertTo-Json -Depth 3  
-		@{"Error" = $res} | ConvertTo-Json
+		$res = $_    
+		Remove-Variable -Name "Output_` + scopeID + `" -Scope Global -ErrorAction SilentlyContinue
+		@{"Error" = $res} | ConvertTo-Json -Depth 3
 	}
 	`
 

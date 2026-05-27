@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/google/uuid"
+	"github.com/anCreny/pw-orm/helpers"
 )
 
 type SVariable struct {
@@ -15,8 +15,8 @@ type SVariable struct {
 	cimClass map[string]any
 }
 
-func (s *SCommand) ToVariable() (*SVariable, error) {
-	res, err := s.c.Run()
+func (c *SCommand) ToVariable() (*SVariable, error) {
+	res, err := c.c.Run()
 	if err != nil {
 		return nil, err
 	}
@@ -36,12 +36,15 @@ func (s *SCommand) ToVariable() (*SVariable, error) {
 	}
 
 	v := &SVariable{
-		o:        s.o,
-		pwName:   uuid.New().String(),
+		o:        c.o,
+		pwName:   helpers.GenerateRandomString(10),
 		cimClass: data,
 	}
 
-	if _, err := s.o.s.Execute(fmt.Sprintf("$%s = $Output.Clone()", v.pwName)); err != nil {
+	if result, err := c.o.RawCommand(fmt.Sprintf("$global:%s['%s'] = $global:Output_%s.Clone()", c.o.s.ID, v.pwName, scopeID)).Run(); err != nil || result.Error() != nil {
+		if err == nil {
+			err = result.Error()
+		}
 		return nil, fmt.Errorf("Произошла ошибка при создании переменной в сессии: %s", err)
 	}
 
@@ -49,7 +52,7 @@ func (s *SCommand) ToVariable() (*SVariable, error) {
 }
 
 func (v *SVariable) PW() string {
-	return v.pwName
+	return fmt.Sprintf("$global:%s['%s']", v.o.s.ID, v.pwName)
 }
 
 // path - путь вложения до необходимого поля, пример: RecordData.IPv4Address
@@ -134,7 +137,7 @@ func (v *SVariable) TrySet(path string, value any) (bool, error) {
 	// Сначала обновим поле у необходимого объекта в PW
 	if result, err := v.o.RawCommand(`
 		$targetFieldPath = "` + path + `"
-		$object = $` + v.pwName + `
+		$object = ` + v.PW() + `
 		$newValueStr = "` + fmt.Sprint(value) + `"
 
 		# 1. Разбиваем путь по точкам
@@ -173,7 +176,7 @@ func (v *SVariable) TrySet(path string, value any) (bool, error) {
 		}
 
 		# Применяем полученное значение обратно в клон
-		$New.$targetFieldPath = $parsedValue
+		$object.$targetFieldPath = $parsedValue
 
 		`).Run(); err != nil || result.Error() != nil {
 		return false, fmt.Errorf("Ошибка при установке значения в PowerShell: %s", result.Error())

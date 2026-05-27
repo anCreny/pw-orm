@@ -75,10 +75,9 @@ func (c *CommandBuilder) Build() *Command {
 		command = fmt.Sprintf("%s %s", command, limitString)
 	}
 
-	command = fmt.Sprintf("%s | ConvertTo-Json", command)
-
 	return &Command{
-		command: command,
+		command:  command,
+		executor: c.executor,
 	}
 }
 

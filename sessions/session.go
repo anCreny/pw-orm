@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+
+	"github.com/anCreny/pw-orm/helpers"
 )
 
 type Session struct {
@@ -16,6 +18,8 @@ type Session struct {
 
 	stdoutClose chan struct{}
 	stderrClone chan struct{}
+
+	ID string // Идентификатор сессии для управления scope в powershell
 }
 
 func Start() (*Session, error) {
@@ -29,37 +33,48 @@ func Start() (*Session, error) {
 		return nil, err
 	}
 
-	return &Session{
+	s := &Session{
+		ID:     helpers.GenerateRandomString(10),
 		cmd:    cmd,
 		stdin:  stdin,
 		stdout: stdout,
 		stderr: stderr,
-	}, nil
+	}
+
+	if _, err := s.Execute(fmt.Sprintf("$global:%s = @{}", s.ID)); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
 func (s *Session) Execute(command string) ([]byte, error) {
 	wrappedCommand := `
-		$stdoutStr = & { ` + command + ` } | Out-String
-		$stderrStr = $Error | Out-String; $Error.Clear()
+		$stdoutStr = & { ` + command + ` }
 
-		$outBytes = [System.Text.Encoding]::UTF8.GetBytes($stdoutStr.Trim())
-		$errBytes = [System.Text.Encoding]::UTF8.GetBytes($stderrStr.Trim())
+    # ПРЕДОХРАНИТЕЛЬ: Если команда ничего не вывела (например, это присвоение переменной),
+    # мы принудительно устанавливаем валидный пустой JSON, чтобы Go не завис.
+    if ([string]::IsNullOrWhiteSpace($stdoutStr)) {
+        $stdoutStr = "{}"
+    }
 
-		function Send-Packet([byte[]]$bytes) {
-			$stream = [System.Console]::OpenStandardOutput()
-			$lenBytes = [System.BitConverter]::GetBytes($bytes.Length)
-			$stream.Write($lenBytes, 0, 4)
-			if ($bytes.Length -gt 0) { $stream.Write($bytes, 0, $bytes.Length) }
-		}
+    # Перехватываем системные ошибки (если они были)
+    $stderrStr = $Error | Out-String; $Error.Clear()
 
-		# Всегда отправляем ровно 2 пакета в фиксированном порядке
-		Send-Packet $outBytes
-		
-		# Для Stderr пишем напрямую в поток ошибок Windows
-		$errStream = [System.Console]::OpenStandardError()
-		$errLenBytes = [System.BitConverter]::GetBytes($errBytes.Length)
-		$errStream.Write($errLenBytes, 0, 4)
-		if ($errBytes.Length -gt 0) { $errStream.Write($errBytes, 0, $errBytes.Length) }
+    # Переводим данные в сырые байты UTF-8
+    $outBytes = [System.Text.Encoding]::UTF8.GetBytes($stdoutStr.Trim())
+    $errBytes = [System.Text.Encoding]::UTF8.GetBytes($stderrStr.Trim())
+
+    function Send-Packet([byte[]]$bytes, $isError) {
+        $stream = if ($isError) { [System.Console]::OpenStandardError() } else { [System.Console]::OpenStandardOutput() }
+        $lenBytes = [System.BitConverter]::GetBytes($bytes.Length)
+        $stream.Write($lenBytes, 0, 4)
+        if ($bytes.Length -gt 0) { $stream.Write($bytes, 0, $bytes.Length) }
+    }
+
+    # Отправляем пакеты
+    Send-Packet $outBytes $false
+    Send-Packet $errBytes $true
 	`
 
 	if _, err := fmt.Fprintln(s.stdin, wrappedCommand); err != nil {

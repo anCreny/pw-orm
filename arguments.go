@@ -2,7 +2,7 @@ package pworm
 
 import "fmt"
 
-func (c *CommandBuilder) SetArguments(args ...Argument) *CommandBuilder {
+func (c *CommandBuilder) WithArguments(args ...Argument) *CommandBuilder {
 	arguments := make([]string, 0, len(args))
 	for _, arg := range args {
 		arguments = append(arguments, arg.toArgument())
@@ -50,4 +50,13 @@ type NilArg struct {
 
 func (a *NilArg) toArgument() string {
 	return fmt.Sprintf("-%s", a.Name)
+}
+
+type SVariableArg struct {
+	Name  string
+	Value SVariable
+}
+
+func (a *SVariableArg) toArgument() string {
+	return fmt.Sprintf("-%s %s", a.Name, a.Value.PW())
 }

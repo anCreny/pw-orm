@@ -10,14 +10,14 @@ func TestValidWhere(t *testing.T) {
 			WhereCondition("field1", Equal, "5").
 				AND().
 				WhereCondition("field2", LessThen, "5"),
-		).SetArguments(
+		).WithArguments(
 		&IntArg{
 			"Arg1",
 			5,
 		},
 	).Build()
 
-	expectCommand := "Test-Command -Arg1 5 | Where-Object { field1 -eq '5' -and field2 -lt '5' } | ConvertTo-Json"
+	expectCommand := "Test-Command -Arg1 5 | Where-Object { $_.field1 -eq '5' -and $_.field2 -lt '5' } | ConvertTo-Json"
 	actualCommand := command.String()
 
 	if expectCommand != actualCommand {

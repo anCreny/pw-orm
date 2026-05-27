@@ -14,6 +14,7 @@ func (o *Operator) NewCommandBuilder(command string) *SCommandBuilder {
 			command:  command,
 			executor: o.s,
 		},
+		o: o,
 	}
 }
 
@@ -48,8 +49,8 @@ func (s *SCommandBuilder) Select(fields ...Field) *SCommandBuilder {
 	return s
 }
 
-func (s *SCommandBuilder) SetArguments(args ...Argument) *SCommandBuilder {
-	s.c = s.c.SetArguments(args...)
+func (s *SCommandBuilder) WithArguments(args ...Argument) *SCommandBuilder {
+	s.c = s.c.WithArguments(args...)
 	return s
 }
 
@@ -65,6 +66,6 @@ type SCommand struct {
 	o *Operator
 }
 
-func (s *SCommand) Run() (result, error) {
-	return s.c.Run()
+func (c *SCommand) Run() (result, error) {
+	return c.c.Run()
 }
