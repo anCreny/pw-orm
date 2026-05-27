@@ -41,7 +41,7 @@ func (w *whereClause) AND() *connector {
 func (c *connector) WhereCondition(field string, cond Condition, value string) *whereClause {
 	w := c.w
 
-	w.clause = fmt.Sprintf("%s%s %s '%s' ", w.clause, field, cond, value)
+	w.clause = fmt.Sprintf("%s$_.%s %s '%s' ", w.clause, field, cond, value)
 
 	return w
 }
@@ -49,7 +49,7 @@ func (c *connector) WhereCondition(field string, cond Condition, value string) *
 func WhereCondition(field string, cond Condition, value string) *whereClause {
 	w := &whereClause{}
 
-	w.clause = fmt.Sprintf(" %s %s '%s' ", field, cond, value)
+	w.clause = fmt.Sprintf(" $_.%s %s '%s' ", field, cond, value)
 
 	return w
 }
