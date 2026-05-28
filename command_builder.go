@@ -38,7 +38,9 @@ func (c *CommandBuilder) Build() *Command {
 		command = fmt.Sprintf("%s -Confirm:$false", command)
 	}
 
-	command = fmt.Sprintf("%s -EA Stop", command)
+	if c.errorAction != "" {
+		command = fmt.Sprintf("%s -EA %s", command, c.errorAction)
+	}
 
 	if c.whereClause != "" {
 		whereString := fmt.Sprintf("Where-Object {%s}", c.whereClause)
