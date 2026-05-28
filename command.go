@@ -7,7 +7,8 @@ import (
 )
 
 type Command struct {
-	command string
+	command  string
+	executor Executer
 }
 
 func (c *Command) String() string {
@@ -19,14 +20,39 @@ func (c *Command) Cmd() *exec.Cmd {
 }
 
 func (c *Command) Run() (result, error) {
-	commandToExtract := `Try 
-	{ $res = ` + c.command + ` ; $res = '{"Output": ; + $res + "}" ; Write-Host $res } 
-	Catch 
-	{ $res = $_  | ConvertTo-Json ; $res = '{"Error": ' + $res + "}" ; Write-Host $res }`
+	// Если команда выполеняется успешно,
+	// создастатся глобальная переменная $global:Output.
+	// Для того, чтобы избежать проблем, связанных с чтением
+	// старой глобальной переменной $global:Output во время
+	// ошибки выполнения следующей команды, удалим ее.
+	commandToExtract := `
+	Try 
+	{ 
+		$userCommand = @'
+		` + c.command + `
+'@
 
-	commandOut, err := exec.Command("powershell", "-command", commandToExtract).Output()
+		$command = [ScriptBlock]::Create($userCommand)
+
+		$res = & $command
+		$global:Output_` + scopeID + ` = $res
+		if ($null -eq $res) {
+         '{"Output": null}'
+    } else {
+         @{"Output" = $res} | ConvertTo-Json -Depth 4
+    }
+	} 
+	Catch 
+	{ 
+		$res = $_    
+		Remove-Variable -Name "Output_` + scopeID + `" -Scope Global -ErrorAction SilentlyContinue
+		@{"Error" = $res} | ConvertTo-Json -Depth 3
+	}
+	`
+
+	commandOut, err := c.executor.Execute(commandToExtract)
 	if err != nil {
-		return result{}, fmt.Errorf("error on start running command(%s): %s", c.command, err)
+		return result{}, fmt.Errorf("error on run command(%s): %s", c.command, err)
 	}
 
 	var r result
