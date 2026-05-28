@@ -4,15 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/anCreny/pw-orm/helpers"
 )
 
 type SVariable struct {
-	o        *Operator
-	pwName   string // ${pwName} = Get-...Command
-	cimClass map[string]any
+	o      *Operator
+	pwName string // ${pwName} = Get-...Command
 }
 
 func (c *SCommand) ToVariable() (*SVariable, error) {
@@ -29,19 +27,12 @@ func (c *SCommand) ToVariable() (*SVariable, error) {
 		return nil, fmt.Errorf("команда не вернула данные для преобразования в переменную")
 	}
 
-	var data map[string]any
-	err = json.Unmarshal(res.Output(), &data)
-	if err != nil {
-		return nil, err
-	}
-
 	v := &SVariable{
-		o:        c.o,
-		pwName:   helpers.GenerateRandomString(10),
-		cimClass: data,
+		o:      c.o,
+		pwName: helpers.GenerateRandomString(10),
 	}
 
-	if result, err := c.o.RawCommand(fmt.Sprintf("$global:%s['%s'] = $global:Output_%s.Clone()", c.o.s.ID, v.pwName, scopeID)).Run(); err != nil || result.Error() != nil {
+	if result, err := c.o.RawCommand(fmt.Sprintf("%s = $global:Output_%s.Clone()", v.PW(), scopeID)).Run(); err != nil || result.Error() != nil {
 		if err == nil {
 			err = result.Error()
 		}
@@ -64,42 +55,34 @@ func (v *SVariable) PW() string {
 //
 // path - путь вложения до необходимого поля, пример: RecordData.IPv4Address
 func (v *SVariable) TryGet(path string) (any, error) {
-	if v.cimClass == nil {
-		return nil, fmt.Errorf("переменная не содержит данные")
-	}
-
 	if !validateVaribalePath(path) {
 		return nil, fmt.Errorf("некорректный путь: %s", path)
 	}
 
-	parts := strings.Split(path, ".")
-
-	var cimField any
-	var ok bool
-
-	for _, part := range parts {
-
-		if cimField == nil {
-			cimField, ok = v.cimClass[part]
-			if !ok {
-				return nil, fmt.Errorf("поле %s не найдено", part)
-			}
-
-			continue
-		}
-
-		mapCimField, ok := cimField.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("поле %s не является словарем", part)
-		}
-
-		cimField, ok = mapCimField[part]
-		if !ok {
-			return nil, fmt.Errorf("поле %s не найдено", part)
-		}
+	if v.pwName == "" {
+		return nil, fmt.Errorf("переменная не была создана")
 	}
 
-	return cimField, nil
+	var res any
+
+	result, err := v.o.NewCommandBuilder(fmt.Sprintf("%s.%s", v.PW(), path)).Build().Run()
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при старте команды на получение значения поля: %v", err)
+	}
+
+	if result.Error() != nil {
+		return nil, result.Error()
+	}
+
+	if result.Output() == nil {
+		return nil, fmt.Errorf("поле пустое")
+	}
+
+	if err := json.Unmarshal(result.Output(), &res); err != nil {
+		return nil, fmt.Errorf("ошибка при декодировании поля: %v", err)
+	}
+
+	return res, nil
 }
 
 // returns:
@@ -127,10 +110,6 @@ func (v *SVariable) TrySet(path string, value any) (bool, error) {
 
 	if !validateVaribalePath(path) {
 		return false, fmt.Errorf("ошибка при установке значения: неверный путь")
-	}
-
-	if v.cimClass == nil {
-		return false, fmt.Errorf("ошибка при установке значения: переменная не была создана")
 	}
 
 	if v.o == nil {
@@ -178,24 +157,6 @@ func (v *SVariable) TrySet(path string, value any) (bool, error) {
 		return false, fmt.Errorf("ошибка при установке значения в PowerShell: %s", result.Error())
 	}
 
-	// Получим обновленную структуру из PowerShell и сохраним ее в переменную
-	result, err := v.o.NewCommandBuilder(v.PW()).Build().Run()
-	if err != nil {
-		return false, fmt.Errorf("ошибка при выполнении команды на получение обновленной структуры: %v", err)
-	}
-
-	if result.Error() != nil {
-		return false, fmt.Errorf("ошибка при получение обновленной структуры: %v", result.Error())
-	}
-
-	var cimClass map[string]any
-
-	if err := json.Unmarshal(result.Output(), &cimClass); err != nil {
-		return false, fmt.Errorf("ошибка при декодировании обновленной структуры: %v", err)
-	}
-
-	v.cimClass = cimClass
-
 	return true, nil
 }
 
@@ -210,25 +171,8 @@ func (v *SVariable) Clone() (*SVariable, error) {
 		if err == nil {
 			err = result.Error()
 		}
-		return nil, fmt.Errorf("произошла ошибка при создании переменной в сессии: %s", err)
+		return nil, fmt.Errorf("произошла ошибка при создании клона переменной в сессии: %s", err)
 	}
-
-	result, err := v.o.NewCommandBuilder(cloneVariable.PW()).Build().Run()
-	if err != nil {
-		return nil, fmt.Errorf("ошибка при выполнении команды на получение обновленной структуры: %v", err)
-	}
-
-	if result.Error() != nil {
-		return nil, fmt.Errorf("ошибка при получение обновленной структуры: %v", result.Error())
-	}
-
-	var cimClass map[string]any
-
-	if err := json.Unmarshal(result.Output(), &cimClass); err != nil {
-		return nil, fmt.Errorf("ошибка при декодировании обновленной структуры: %v", err)
-	}
-
-	cloneVariable.cimClass = cimClass
 
 	return cloneVariable, nil
 }

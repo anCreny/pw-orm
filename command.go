@@ -36,7 +36,11 @@ func (c *Command) Run() (result, error) {
 
 		$res = & $command
 		$global:Output_` + scopeID + ` = $res
-		@{"Output" = $res} | ConvertTo-Json -Depth 4
+		if ($null -eq $res) {
+         '{"Output": null}'
+    } else {
+         @{"Output" = $res} | ConvertTo-Json -Depth 4
+    }
 	} 
 	Catch 
 	{ 

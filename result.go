@@ -7,8 +7,8 @@ import (
 )
 
 type result struct {
-	Err *errors.Error   `json:"Error"`
-	Out json.RawMessage `json:"Output"`
+	Err *errors.Error    `json:"Error"`
+	Out *json.RawMessage `json:"Output"`
 }
 
 func (r *result) FullError() *errors.Error {
@@ -29,5 +29,8 @@ func (r *result) Error() error {
 }
 
 func (r *result) Output() []byte {
-	return r.Out
+	if r.Out == nil {
+		return nil
+	}
+	return *r.Out
 }

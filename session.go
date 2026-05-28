@@ -16,17 +16,23 @@ import (
 //
 //  operator.NewCommandBuilder(DnsRecordSet).SetArguments(-NewInputObj = cloneRecord.PW(), -OldInputObj = record.PW()).Build().Run()
 
-func InSession(session func(operator *Operator) error) error {
+func NewSession() (*Operator, error) {
 	s, err := sessions.Start()
 	if err != nil {
-		return fmt.Errorf("произошла ошибка при запуске сессии: %s", err)
+		return nil, fmt.Errorf("произошла ошибка при запуске сессии: %s", err)
 	}
-
-	defer s.Close()
 
 	o := &Operator{
 		s: s,
 	}
 
-	return session(o)
+	return o, nil
+}
+
+func (o *Operator) CloseSession() {
+	o.s.Close()
+}
+
+func (o *Operator) SessionID() string {
+	return o.s.ID
 }

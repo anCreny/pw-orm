@@ -13,6 +13,7 @@ type CommandBuilder struct {
 	selectFields []Field
 	limit        int
 	autoConfirm  bool
+	errorAction  string
 
 	executor Executer
 }
@@ -36,6 +37,8 @@ func (c *CommandBuilder) Build() *Command {
 	if c.autoConfirm {
 		command = fmt.Sprintf("%s -Confirm:$false", command)
 	}
+
+	command = fmt.Sprintf("%s -EA Stop", command)
 
 	if c.whereClause != "" {
 		whereString := fmt.Sprintf("Where-Object {%s}", c.whereClause)
