@@ -46,13 +46,6 @@ func (v *SVariable) PW() string {
 	return fmt.Sprintf("$global:%s['%s']", v.o.s.ID, v.pwName)
 }
 
-// Внутри переменной находится сложный CimClass из .NET,
-// с которым нормально умеет работать только PowerShell.
-// Для необходимости достать какое-то поле у переменной
-// лучше воспользоваться командой operator.NewCommandBuilder(variable.PW()).Select("RecordData.IPv4Address.IPv4AddressToString", "IP").Build()
-// и дальше скастить результат к необходимой структуре или еще раз
-// вызвать TryGet
-//
 // path - путь вложения до необходимого поля, пример: RecordData.IPv4Address
 func (v *SVariable) TryGet(path string) (any, error) {
 	if !validateVaribalePath(path) {
