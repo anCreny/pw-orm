@@ -14,6 +14,7 @@ type CommandBuilder struct {
 	limit        int
 	autoConfirm  bool
 	errorAction  string
+	mustArray    bool
 
 	executor Executer
 }
@@ -80,6 +81,10 @@ func (c *CommandBuilder) Build() *Command {
 		command = fmt.Sprintf("%s %s", command, limitString)
 	}
 
+	if c.mustArray {
+		command = fmt.Sprintf("@(%s)", command)
+	}
+
 	return &Command{
 		command:  command,
 		executor: c.executor,
@@ -90,5 +95,10 @@ func (c *CommandBuilder) AutoConfirm() *CommandBuilder {
 
 	c.autoConfirm = true
 
+	return c
+}
+
+func (c *CommandBuilder) MustArray() *CommandBuilder {
+	c.mustArray = true
 	return c
 }
