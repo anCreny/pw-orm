@@ -1,6 +1,9 @@
-# pw-orm
 
-![Image alt](https://github.com/anCreny/pw-orm/blob/master/props/icon.png)
+<p align="center">
+ <img width="300px" src="https://github.com/anCreny/pw-orm/raw/master/props/icon.png" alt="pworm-icon"/>
+</p>
+
+# pw-orm
 
 ## Описание
 
