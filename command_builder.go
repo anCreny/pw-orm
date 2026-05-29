@@ -1,8 +1,11 @@
 package pworm
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/anCreny/pw-orm/errors"
 )
 
 type CommandBuilder struct {
@@ -10,7 +13,7 @@ type CommandBuilder struct {
 	arguments []string
 
 	whereClause  string
-	selectFields []Field
+	selectClause string
 	limit        int
 	autoConfirm  bool
 	errorAction  string
@@ -26,7 +29,9 @@ func NewCommandBuilder(command string) *CommandBuilder {
 	}
 }
 
-func (c *CommandBuilder) Build() *Command {
+func (c *CommandBuilder) Build() (*Command, error) {
+
+	// Собираем команду
 
 	command := c.command
 
@@ -49,27 +54,8 @@ func (c *CommandBuilder) Build() *Command {
 		command = fmt.Sprintf("%s | %s", command, whereString)
 	}
 
-	if len(c.selectFields) != 0 {
-		var fields []string
-		for _, selectField := range c.selectFields {
-			// Если имя пустое, пропускаем
-			if selectField.Name == "" {
-				continue
-			}
-
-			// Если алиас не указан, устанавливаем
-			// его в качестве имени
-			if selectField.As == "" {
-				selectField.As = selectField.Name
-			}
-
-			field := fmt.Sprintf("@{Name='%s'; Expression={$_.%s}}", selectField.As, selectField.Name)
-
-			fields = append(fields, field)
-		}
-		selectString := strings.Join(fields, ", ")
-
-		selectString = fmt.Sprintf("| Select %s", selectString)
+	if c.selectClause != "" {
+		selectString := fmt.Sprintf("| Select %s", c.selectClause)
 
 		command = fmt.Sprintf("%s %s", command, selectString)
 	}
@@ -85,10 +71,47 @@ func (c *CommandBuilder) Build() *Command {
 		command = fmt.Sprintf("@(%s)", command)
 	}
 
+	// Проверив команду на валидность с помощью встроеного PowerShell механизма
+
+	validateCommand := `
+	Try {
+		$userCommand = @'
+		` + command + `
+'@
+
+		$command = [ScriptBlock]::Create($userCommand)
+	}
+	Catch {
+		@{"Error" = $_} | ConvertTo-Json -Depth 3
+	}
+
+	`
+
+	res, err := c.executor.Execute(validateCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	if res != nil {
+		var result ValudateResult
+
+		if err := json.Unmarshal(res, &result); err != nil {
+			return nil, fmt.Errorf("ошибка декодирования результата проверки команды: %v", err)
+		}
+
+		if result.Error != nil {
+			return nil, fmt.Errorf("ошибка синтаксиса команды: %s", result.Error.ErrorDetails.Message)
+		}
+	}
+
 	return &Command{
 		command:  command,
 		executor: c.executor,
-	}
+	}, nil
+}
+
+type ValudateResult struct {
+	Error *errors.Error `json:"Error"`
 }
 
 func (c *CommandBuilder) AutoConfirm() *CommandBuilder {

@@ -58,9 +58,14 @@ func (v *SVariable) TryGet(path string) (any, error) {
 
 	var res any
 
-	result, err := v.o.NewCommandBuilder(fmt.Sprintf("%s.%s", v.PW(), path)).Build().Run()
+	command, err := v.o.NewCommandBuilder(fmt.Sprintf("%s.%s", v.PW(), path)).Build()
 	if err != nil {
-		return nil, fmt.Errorf("ошибка при старте команды на получение значения поля: %v", err)
+		return nil, fmt.Errorf("ошибка синтаксиса команды на получение значения поля: %v", err)
+	}
+
+	result, err := command.Run()
+	if err != nil {
+		return nil, err
 	}
 
 	if result.Error() != nil {

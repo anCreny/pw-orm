@@ -54,11 +54,12 @@ func (s *SCommandBuilder) WithArguments(args ...Argument) *SCommandBuilder {
 	return s
 }
 
-func (s *SCommandBuilder) Build() *SCommand {
+func (s *SCommandBuilder) Build() (*SCommand, error) {
+	command, err := s.c.Build()
 	return &SCommand{
-		c: s.c.Build(),
+		c: command,
 		o: s.o,
-	}
+	}, err
 }
 
 type SCommand struct {
