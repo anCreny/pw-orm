@@ -1,6 +1,7 @@
 package pworm
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -10,7 +11,7 @@ import (
 
 type CommandBuilder struct {
 	command   string
-	arguments []string
+	arguments []Arg
 
 	whereClause  string
 	selectClause string
@@ -36,8 +37,14 @@ func (c *CommandBuilder) Build() (*Command, error) {
 	command := c.command
 
 	if len(c.arguments) != 0 {
-		argsString := strings.Join(c.arguments, " ")
-		command = fmt.Sprintf("%s %s", command, argsString)
+		var argsString []string
+
+		for _, arg := range c.arguments {
+			argsString = append(argsString, arg.Value)
+		}
+
+		args := strings.Join(argsString, " ")
+		command = fmt.Sprintf("%s %s", command, args)
 	}
 
 	if c.autoConfirm {
@@ -73,24 +80,57 @@ func (c *CommandBuilder) Build() (*Command, error) {
 
 	// Проверив команду на валидность с помощью встроеного PowerShell механизма
 
+	var commandPartCheckParams string
+
+	if len(c.arguments) > 0 {
+
+		var argRows []string
+
+		for _, arg := range c.arguments {
+			argRows = append(argRows, arg.Row)
+		}
+
+		args := strings.Join(argRows, "\n")
+
+		commandPartCheckParams = `
+		$parameters = @{
+			` + args + `
+			}
+
+			$cmdInfo = Get-Command -Name "` + c.command + `" -ErrorAction Stop
+
+      foreach ($key in $parameters.Keys) {
+        if (-not $cmdInfo.Parameters.ContainsKey($key)) {
+             throw [System.Management.Automation.ParameterBindingException]"Parameter '$key' not found for the command."
+        }
+     	}
+		`
+
+	}
+
 	validateCommand := `
 	Try {
-		$userCommand = @'
-		` + command + `
+			$userCommand = @'
+			` + command + `
 '@
 
-		$command = [ScriptBlock]::Create($userCommand)
+			$null = [ScriptBlock]::Create($userCommand)
+
+			` + commandPartCheckParams + `
+
 	}
 	Catch {
-		@{"Error" = $_} | ConvertTo-Json -Depth 3
+		 	if ($_.Exception -and $_.Exception.Data) { $_.Exception.Data.Clear() }
+     	@{"Error" = $_ | Select-Object Exception, CategoryInfo, ErrorDetails} | ConvertTo-Json -Depth 3
 	}
-
 	`
 
 	res, err := c.executor.Execute(validateCommand)
 	if err != nil {
 		return nil, err
 	}
+
+	res = bytes.TrimSpace(res)
 
 	if res != nil {
 		var result ValudateResult
