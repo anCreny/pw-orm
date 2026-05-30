@@ -140,7 +140,7 @@ func (c *CommandBuilder) Build() (*Command, error) {
 		}
 
 		if result.Error != nil {
-			return nil, fmt.Errorf("ошибка синтаксиса команды: %s", result.Error.ErrorDetails.Message)
+			return nil, fmt.Errorf("ошибка синтаксиса команды: %s", result.Error.Exception.Message)
 		}
 	}
 
