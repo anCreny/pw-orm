@@ -11,7 +11,7 @@ type Command struct {
 	executor Executer
 }
 
-func (c *Command) String() string {
+func (c *Command) ToString() string {
 	return c.command
 }
 
@@ -28,14 +28,11 @@ func (c *Command) Run() (result, error) {
 	commandToExtract := `
 	Try 
 	{ 
-		$userCommand = @'
-		` + c.command + `
-'@
 
-		$command = [ScriptBlock]::Create($userCommand)
+		$res = ` + c.command + `
 
-		$res = & $command
 		$global:Output_` + scopeID + ` = $res
+
 		if ($null -eq $res) {
          '{"Output": null}'
     } else {
@@ -44,9 +41,8 @@ func (c *Command) Run() (result, error) {
 	} 
 	Catch 
 	{ 
-		$res = $_    
 		Remove-Variable -Name "Output_` + scopeID + `" -Scope Global -ErrorAction SilentlyContinue
-		@{"Error" = $res} | ConvertTo-Json -Depth 3
+		@{"Error" = $_} | ConvertTo-Json -Depth 3
 	}
 	`
 

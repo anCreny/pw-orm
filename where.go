@@ -1,62 +1,57 @@
 package pworm
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+type op string
+
+var (
+	Equal    op = "-eq"
+	NotEqual op = "-ne"
+	LessThen op = "-lt"
+	Like     op = "-like"
+	NotLike  op = "-notlike"
+	RegExp   op = "-match"
+	Contains op = "-contains"
+)
+
+func (c *CommandBuilder) Where(cond Condition) *CommandBuilder {
+
+	c.whereClause = string(cond)
+
+	return c
+}
 
 type Condition string
 
-var (
-	Equal    Condition = "-eq"
-	NotEqual Condition = "-ne"
-	LessThen Condition = "-lt"
-	Like     Condition = "-like"
-	NotLike  Condition = "-notlike"
-	RegExp   Condition = "-match"
-	Contains Condition = "-contains"
-)
-
-type whereClause struct {
-	clause string
+func (c Condition) ToString() string {
+	return string(c)
 }
 
-type connector struct {
-	w *whereClause
+func Clause(field string, o op, value string) Condition {
+	return Condition(fmt.Sprintf(" $_.%s %s '%s' ", field, o, value))
 }
 
-func (w *whereClause) OR() *connector {
-	w.clause = fmt.Sprintf("%s-or ", w.clause)
+func ANDClause(conds ...Condition) Condition {
+	res := joinConditions(conds, "-and")
 
-	return &connector{
-		w: w,
+	return Condition(fmt.Sprintf(" (%s) ", res))
+}
+
+func ORClause(conds ...Condition) Condition {
+	res := joinConditions(conds, "-or")
+
+	return Condition(fmt.Sprintf(" (%s) ", res))
+}
+
+func joinConditions(conds []Condition, connector string) string {
+	var res []string
+
+	for _, cond := range conds {
+		res = append(res, cond.ToString())
 	}
-}
 
-func (w *whereClause) AND() *connector {
-	w.clause = fmt.Sprintf("%s-and ", w.clause)
-
-	return &connector{
-		w: w,
-	}
-}
-
-func (c *connector) WhereCondition(field string, cond Condition, value string) *whereClause {
-	w := c.w
-
-	w.clause = fmt.Sprintf("%s$_.%s %s '%s' ", w.clause, field, cond, value)
-
-	return w
-}
-
-func WhereCondition(field string, cond Condition, value string) *whereClause {
-	w := &whereClause{}
-
-	w.clause = fmt.Sprintf(" $_.%s %s '%s' ", field, cond, value)
-
-	return w
-}
-
-func (c *CommandBuilder) Where(w *whereClause) *CommandBuilder {
-
-	c.whereClause = w.clause
-
-	return c
+	return strings.Join(res, connector)
 }

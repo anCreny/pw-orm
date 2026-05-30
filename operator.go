@@ -34,8 +34,8 @@ type SCommandBuilder struct {
 	o *Operator
 }
 
-func (s *SCommandBuilder) Where(w *whereClause) *SCommandBuilder {
-	s.c = s.c.Where(w)
+func (s *SCommandBuilder) Where(cond Condition) *SCommandBuilder {
+	s.c = s.c.Where(cond)
 	return s
 }
 
@@ -54,11 +54,12 @@ func (s *SCommandBuilder) WithArguments(args ...Argument) *SCommandBuilder {
 	return s
 }
 
-func (s *SCommandBuilder) Build() *SCommand {
+func (s *SCommandBuilder) Build() (*SCommand, error) {
+	command, err := s.c.Build()
 	return &SCommand{
-		c: s.c.Build(),
+		c: command,
 		o: s.o,
-	}
+	}, err
 }
 
 type SCommand struct {

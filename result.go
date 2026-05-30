@@ -1,6 +1,7 @@
 package pworm
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/anCreny/pw-orm/errors"
@@ -32,5 +33,5 @@ func (r *result) Output() []byte {
 	if r.Out == nil {
 		return nil
 	}
-	return *r.Out
+	return bytes.TrimSpace(*r.Out)
 }
